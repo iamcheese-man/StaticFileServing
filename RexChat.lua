@@ -1,15 +1,20 @@
---[[
-	WARNING: Heads up! This script has not been verified by ScriptBlox. Use at your own risk!
-]]
--- REX-chat script
+-- REX-Chat | OpenFun Chatroom (Multi-Room)
 -- Rooms: REX-Chat-Room1 ... REX-Chat-Room15
 --
+-- Protocol (unchanged):
+--   joined -> room confirmation + Data.history
+--   say -> incoming chat
+--   user-joined / user-left / error -> system events
 --
--- New features:
---   /clear        clears local displayed msgs
+-- Commands:
+--   /clear        clears the locally displayed messages only
 --   /rooms        back to the room list
---   /room 1-15  jump straight to a room
---   X button      closes the web socket and destroys the GUI
+--   /room <1-15>  jump straight to a room
+--   /mute <name>  hide a user's messages on your client
+--   /unmute <name>
+--
+-- Spam protection (rate limits, flood hiding, IP limits) is enforced by the relay Worker.
+--   X button      closes the WebSocket and destroys the GUI
 
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
@@ -20,13 +25,15 @@ local Username = Player.Name
 
 local ROOM_PREFIX = "REX-Chat-Room"
 local ROOM_COUNT = 15
-local PASSWORD = "6xrxDelnel7@/:.4!" -- used for every room
-local ROOM_PASSWORDS = {}             -- optional per-room override, e.g. ROOM_PASSWORDS[3] = "other"
-local ENDPOINT = "wss://chatroom.openfun.app/ws"
+-- Your Cloudflare Worker relay (see relay-worker.js). The room password lives there, not here.
+local ENDPOINT = "wss://YOUR-WORKER.workers.dev/ws"
 local MAX_MESSAGES = 200
 
-local function PasswordFor(Index)
-    return ROOM_PASSWORDS[Index] or PASSWORD
+
+-- Refuse to run until the relay URL has been set
+if ENDPOINT:find("YOUR%-WORKER") then
+    warn("[REX-Chat] Set ENDPOINT to your Cloudflare Worker URL first.")
+    return
 end
 
 -- Clean up a previous execution
@@ -48,6 +55,9 @@ local Connections = {}       -- GUI connections (live until the GUI closes)
 local SocketConnections = {} -- per-socket connections (reset on room change)
 local Labels = {}            -- message labels, oldest first
 local MessageOrder = 0
+
+-- Manual /mute list (lowercase username -> true)
+local Muted = {}
 
 -- GUI setup
 local ScreenGui = Instance.new("ScreenGui")
@@ -333,6 +343,11 @@ local function Disconnect()
     end
 end
 
+-- Personal /mute list. Spam handling happens in the relay, not here.
+local function IsMuted(Name)
+    return Muted[tostring(Name):lower()] == true
+end
+
 local function HandleMessage(RawMessage)
     local Success, Data = pcall(function()
         return HttpService:JSONDecode(tostring(RawMessage))
@@ -354,7 +369,9 @@ local function HandleMessage(RawMessage)
                         and Payload.type == "chat"
                         and type(Payload.text) == "string" then
 
-                        AddMessage(tostring(Entry.username) .. ": " .. Payload.text)
+                        if not IsMuted(Entry.username) then
+                            AddMessage(tostring(Entry.username) .. ": " .. Payload.text)
+                        end
                     end
                 end
             end
@@ -367,7 +384,9 @@ local function HandleMessage(RawMessage)
             and Payload.type == "chat"
             and type(Payload.text) == "string" then
 
-            AddMessage(tostring(Data.username) .. ": " .. Payload.text)
+            if not IsMuted(Data.username) then
+                AddMessage(tostring(Data.username) .. ": " .. Payload.text)
+            end
         end
 
     elseif Data.type == "user-joined" then
@@ -435,8 +454,7 @@ local function JoinRoom(Index)
     local JoinSuccess, JoinError = SendPacket({
         type = "join",
         room = RoomName,
-        username = Username,
-        password = PasswordFor(Index)
+        username = Username
     })
 
     if not JoinSuccess then
@@ -532,6 +550,26 @@ local function SendMessage()
         else
             AddMessage("(S) Room must be between 1 and " .. ROOM_COUNT .. ".")
         end
+        return
+    end
+
+    local MuteName = Message:lower():match("^%s*/mute%s+(%S+)%s*$")
+    if MuteName then
+        Input.Text = ""
+        if MuteName == Username:lower() then
+            AddMessage("(S) You can't mute yourself.")
+        else
+            Muted[MuteName] = true
+            AddMessage("(S) Muted " .. MuteName .. ". Use /unmute " .. MuteName .. " to undo.")
+        end
+        return
+    end
+
+    local UnmuteName = Message:lower():match("^%s*/unmute%s+(%S+)%s*$")
+    if UnmuteName then
+        Input.Text = ""
+        Muted[UnmuteName] = nil
+        AddMessage("(S) Unmuted " .. UnmuteName .. ".")
         return
     end
 
