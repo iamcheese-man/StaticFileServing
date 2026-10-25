@@ -26,15 +26,9 @@ local Username = Player.Name
 local ROOM_PREFIX = "REX-Chat-Room"
 local ROOM_COUNT = 15
 -- Your Cloudflare Worker relay (see relay-worker.js). The room password lives there, not here.
-local ENDPOINT = "wss://YOUR-WORKER.workers.dev/ws"
+local ENDPOINT = "wss://openfunproxy.zerdgeservers.workers.dev/ws"
 local MAX_MESSAGES = 200
 
-
--- Refuse to run until the relay URL has been set
-if ENDPOINT:find("YOUR%-WORKER") then
-    warn("[REX-Chat] Set ENDPOINT to your Cloudflare Worker URL first.")
-    return
-end
 
 -- Clean up a previous execution
 local Env = (getgenv and getgenv()) or _G
