@@ -25,9 +25,10 @@ local Username = Player.Name
 
 local ROOM_PREFIX = "REX-Chat-Room"
 local ROOM_COUNT = 15
--- Your Cloudflare Worker relay (see relay-worker.js). The room password lives there, not here.
-local ENDPOINT = "wss://openfunproxy.zerdgeservers.workers.dev/ws"
+-- the relay is broken so ill use the direct endp
+local ENDPOINT = "wss://chatroom.openfun.app/ws"
 local MAX_MESSAGES = 200
+local PASSWORD = "2?.7?281@,20!."
 
 
 -- Clean up a previous execution
@@ -448,7 +449,8 @@ local function JoinRoom(Index)
     local JoinSuccess, JoinError = SendPacket({
         type = "join",
         room = RoomName,
-        username = Username
+        username = Username,
+        password = PASSWORD
     })
 
     if not JoinSuccess then
