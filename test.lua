@@ -1,30 +1,17 @@
 
---[[
-    Executor Workspace Audio Browser
-    Scans the executor's "workspace" directory recursively.
-    Lists audio files and attempts playback when clicked.
-
-    Required executor APIs:
-        listfiles
-        isfolder
-        getcustomasset or getsynasset
-]]
-
 local Players = game:GetService("Players")
 local SoundService = game:GetService("SoundService")
+local PlayerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 
-local LocalPlayer = Players.LocalPlayer
-local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local listfiles = listfiles
+local isfolder = isfolder
+local getasset = getcustomasset or getsynasset
 
-local ListFiles = listfiles
-local IsFolder = isfolder
-local GetAsset = getcustomasset or getsynasset
+assert(type(listfiles) == "function", "Executor requires listfiles")
+assert(type(isfolder) == "function", "Executor requires isfolder")
+assert(type(getasset) == "function", "Executor requires getcustomasset or getsynasset")
 
-assert(type(ListFiles) == "function", "Executor requires listfiles")
-assert(type(IsFolder) == "function", "Executor requires isfolder")
-assert(type(GetAsset) == "function", "Executor requires getcustomasset or getsynasset")
-
-local ROOT = "workspace"
+local ROOT = ""
 
 local AUDIO_EXTENSIONS = {
     mp3 = true,
@@ -42,19 +29,15 @@ local AUDIO_EXTENSIONS = {
     midi = true,
 }
 
--- Remove any previous GUI.
 local previous = PlayerGui:FindFirstChild("ExecutorAudioBrowser")
 if previous then
     previous:Destroy()
 end
 
--- State.
-local currentSound = nil
-local currentSoundEnded = nil
-local scanGeneration = 0
+local currentSound
 local playbackGeneration = 0
+local scanGeneration = 0
 
--- Main GUI.
 local gui = Instance.new("ScreenGui")
 gui.Name = "ExecutorAudioBrowser"
 gui.ResetOnSpawn = false
@@ -68,43 +51,62 @@ main.Size = UDim2.fromOffset(320, 360)
 main.Position = UDim2.new(0.5, -160, 0.5, -180)
 main.BackgroundColor3 = Color3.fromRGB(23, 24, 31)
 main.BorderSizePixel = 0
-main.ClipsDescendants = true
 main.Active = true
+main.ClipsDescendants = true
 main.Parent = gui
 
-local mainCorner = Instance.new("UICorner")
-mainCorner.CornerRadius = UDim.new(0, 9)
-mainCorner.Parent = main
+Instance.new("UICorner", main).CornerRadius = UDim.new(0, 9)
 
--- Drag detector is attached directly to the main GUI frame.
+-- Directly attached to the main frame.
 local dragDetector = Instance.new("UIDragDetector")
 dragDetector.Parent = main
 
--- Title.
 local title = Instance.new("TextLabel")
 title.Name = "Title"
-title.Position = UDim2.fromOffset(0, 0)
 title.Size = UDim2.new(1, 0, 0, 36)
 title.BackgroundColor3 = Color3.fromRGB(35, 38, 50)
 title.BorderSizePixel = 0
 title.Text = "  Audio Browser"
-title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.TextColor3 = Color3.new(1, 1, 1)
 title.TextSize = 14
 title.Font = Enum.Font.GothamBold
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.Parent = main
 
-local titleCorner = Instance.new("UICorner")
-titleCorner.CornerRadius = UDim.new(0, 9)
-titleCorner.Parent = title
+Instance.new("UICorner", title).CornerRadius = UDim.new(0, 9)
 
--- Status.
+local refresh = Instance.new("TextButton")
+refresh.Name = "Refresh"
+refresh.Position = UDim2.new(1, -148, 0, 5)
+refresh.Size = UDim2.fromOffset(65, 26)
+refresh.BackgroundColor3 = Color3.fromRGB(60, 105, 195)
+refresh.Text = "Refresh"
+refresh.TextColor3 = Color3.new(1, 1, 1)
+refresh.TextSize = 11
+refresh.Font = Enum.Font.GothamBold
+refresh.Parent = main
+
+Instance.new("UICorner", refresh).CornerRadius = UDim.new(0, 5)
+
+local stop = Instance.new("TextButton")
+stop.Name = "Stop"
+stop.Position = UDim2.new(1, -78, 0, 5)
+stop.Size = UDim2.fromOffset(70, 26)
+stop.BackgroundColor3 = Color3.fromRGB(170, 55, 65)
+stop.Text = "Stop"
+stop.TextColor3 = Color3.new(1, 1, 1)
+stop.TextSize = 11
+stop.Font = Enum.Font.GothamBold
+stop.Parent = main
+
+Instance.new("UICorner", stop).CornerRadius = UDim.new(0, 5)
+
 local status = Instance.new("TextLabel")
 status.Name = "Status"
 status.Position = UDim2.fromOffset(9, 39)
 status.Size = UDim2.new(1, -18, 0, 20)
 status.BackgroundTransparency = 1
-status.Text = "Initializing..."
+status.Text = "Scanning sandbox..."
 status.TextColor3 = Color3.fromRGB(175, 180, 195)
 status.TextSize = 10
 status.Font = Enum.Font.Gotham
@@ -112,41 +114,6 @@ status.TextXAlignment = Enum.TextXAlignment.Left
 status.TextTruncate = Enum.TextTruncate.AtEnd
 status.Parent = main
 
--- Refresh button.
-local refresh = Instance.new("TextButton")
-refresh.Name = "Refresh"
-refresh.Position = UDim2.new(1, -148, 0, 5)
-refresh.Size = UDim2.fromOffset(65, 26)
-refresh.BackgroundColor3 = Color3.fromRGB(60, 105, 195)
-refresh.BorderSizePixel = 0
-refresh.Text = "Refresh"
-refresh.TextColor3 = Color3.new(1, 1, 1)
-refresh.TextSize = 11
-refresh.Font = Enum.Font.GothamBold
-refresh.Parent = main
-
-local refreshCorner = Instance.new("UICorner")
-refreshCorner.CornerRadius = UDim.new(0, 5)
-refreshCorner.Parent = refresh
-
--- Stop button.
-local stop = Instance.new("TextButton")
-stop.Name = "Stop"
-stop.Position = UDim2.new(1, -78, 0, 5)
-stop.Size = UDim2.fromOffset(70, 26)
-stop.BackgroundColor3 = Color3.fromRGB(170, 55, 65)
-stop.BorderSizePixel = 0
-stop.Text = "Stop Audio"
-stop.TextColor3 = Color3.new(1, 1, 1)
-stop.TextSize = 11
-stop.Font = Enum.Font.GothamBold
-stop.Parent = main
-
-local stopCorner = Instance.new("UICorner")
-stopCorner.CornerRadius = UDim.new(0, 5)
-stopCorner.Parent = stop
-
--- Audio file list.
 local scrolling = Instance.new("ScrollingFrame")
 scrolling.Name = "AudioFiles"
 scrolling.Position = UDim2.fromOffset(8, 64)
@@ -154,15 +121,12 @@ scrolling.Size = UDim2.new(1, -16, 1, -72)
 scrolling.BackgroundColor3 = Color3.fromRGB(17, 18, 24)
 scrolling.BorderSizePixel = 0
 scrolling.ScrollBarThickness = 5
-scrolling.ScrollBarImageColor3 = Color3.fromRGB(100, 105, 125)
 scrolling.AutomaticCanvasSize = Enum.AutomaticSize.Y
-scrolling.CanvasSize = UDim2.new(0, 0, 0, 0)
+scrolling.CanvasSize = UDim2.new()
 scrolling.ScrollingDirection = Enum.ScrollingDirection.Y
 scrolling.Parent = main
 
-local scrollingCorner = Instance.new("UICorner")
-scrollingCorner.CornerRadius = UDim.new(0, 6)
-scrollingCorner.Parent = scrolling
+Instance.new("UICorner", scrolling).CornerRadius = UDim.new(0, 6)
 
 local padding = Instance.new("UIPadding")
 padding.PaddingTop = UDim.new(0, 5)
@@ -176,121 +140,76 @@ layout.Padding = UDim.new(0, 4)
 layout.SortOrder = Enum.SortOrder.LayoutOrder
 layout.Parent = scrolling
 
--- Playback management.
-local function stopAudio(silent)
-    playbackGeneration += 1
-
-    if currentSoundEnded then
-        currentSoundEnded:Disconnect()
-        currentSoundEnded = nil
-    end
-
-    if currentSound then
-        local oldSound = currentSound
-        currentSound = nil
-
-        pcall(function()
-            oldSound:Stop()
-            oldSound:Destroy()
-        end)
-    end
-
-    if not silent and gui.Parent then
-        status.Text = "Playback stopped"
-    end
-end
-
--- File helpers.
-local function getExtension(path)
-    local filename = path:match("[^/\\]+$") or path
-    local extension = filename:match("%.([^%.]+)$")
-
-    if extension then
-        return extension:lower()
-    end
-
-    return nil
-end
-
 local function getFilename(path)
-    return path:match("[^/\\]+$") or path
+    return path:gsub("\\", "/"):match("([^/]+)$") or path
 end
 
--- Recursive executor filesystem scan.
-local function scanDirectory(directory, results, visited, depth)
-    if depth > 30 then
-        return
-    end
+local function isAudioFile(path)
+    local name = getFilename(path)
+    local extension = name:match("%.([^%.]+)$")
 
-    local ok, files = pcall(ListFiles, directory)
+    return extension ~= nil
+        and AUDIO_EXTENSIONS[extension:lower()] == true
+end
 
-    if not ok or type(files) ~= "table" then
-        return
-    end
-
-    for _, path in ipairs(files) do
-        if type(path) == "string" then
-            local normalized = path:gsub("\\", "/")
-
-            if not visited[normalized] then
-                visited[normalized] = true
-
-                local folderOK, folder = pcall(IsFolder, path)
-
-                if folderOK and folder then
-                    scanDirectory(path, results, visited, depth + 1)
-                else
-                    local extension = getExtension(path)
-
-                    if extension and AUDIO_EXTENSIONS[extension] then
-                        table.insert(results, path)
-                    end
-                end
-            end
+local function clearList()
+    for _, child in ipairs(scrolling:GetChildren()) do
+        if child:IsA("TextButton") then
+            child:Destroy()
         end
     end
 end
 
--- Play a selected local file through the executor asset API.
+local function stopAudio()
+    playbackGeneration += 1
+
+    if currentSound then
+        local sound = currentSound
+        currentSound = nil
+
+        pcall(function()
+            sound:Stop()
+            sound:Destroy()
+        end)
+    end
+
+    status.Text = "Playback stopped"
+end
+
 local function playFile(path)
-    stopAudio(true)
+    stopAudio()
 
     local thisPlayback = playbackGeneration
     status.Text = "Loading: " .. getFilename(path)
 
     task.spawn(function()
-        local ok, assetOrError = pcall(GetAsset, path)
+        local ok, asset = pcall(getasset, path)
 
         if thisPlayback ~= playbackGeneration or not gui.Parent then
             return
         end
 
-        if not ok or type(assetOrError) ~= "string" then
-            status.Text = "Asset error: " .. tostring(assetOrError)
+        if not ok or type(asset) ~= "string" then
+            status.Text = "Asset conversion failed"
             return
         end
 
         local sound = Instance.new("Sound")
         sound.Name = "ExecutorLocalAudio"
-        sound.SoundId = assetOrError
+        sound.SoundId = asset
         sound.Volume = 1
         sound.Looped = false
         sound.Parent = SoundService
-
         currentSound = sound
-        status.Text = "Preparing: " .. getFilename(path)
 
-        local loadOK, loadError = pcall(function()
+        local playOK, playError = pcall(function()
             sound:Play()
         end)
 
-        if not loadOK then
-            if currentSound == sound then
-                currentSound = nil
-            end
-
+        if not playOK then
+            currentSound = nil
             sound:Destroy()
-            status.Text = "Playback error: " .. tostring(loadError)
+            status.Text = "Playback error: " .. tostring(playError)
             return
         end
 
@@ -305,15 +224,10 @@ local function playFile(path)
 
         status.Text = "Playing: " .. getFilename(path)
 
-        currentSoundEnded = sound.Ended:Connect(function()
+        sound.Ended:Connect(function()
             if currentSound == sound then
                 currentSound = nil
                 status.Text = "Finished: " .. getFilename(path)
-            end
-
-            if currentSoundEnded then
-                currentSoundEnded:Disconnect()
-                currentSoundEnded = nil
             end
 
             sound:Destroy()
@@ -321,19 +235,7 @@ local function playFile(path)
     end)
 end
 
--- Remove old entries.
-local function clearList()
-    for _, child in ipairs(scrolling:GetChildren()) do
-        if child:IsA("TextButton") then
-            child:Destroy()
-        end
-    end
-end
-
--- Add one clickable audio file entry.
 local function addFile(path, index)
-    local filename = getFilename(path)
-
     local button = Instance.new("TextButton")
     button.Name = "AudioFile_" .. index
     button.Size = UDim2.new(1, -4, 0, 40)
@@ -341,19 +243,16 @@ local function addFile(path, index)
     button.BorderSizePixel = 0
     button.Text = ""
     button.LayoutOrder = index
-    button.AutoButtonColor = true
     button.Parent = scrolling
 
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 5)
-    corner.Parent = button
+    Instance.new("UICorner", button).CornerRadius = UDim.new(0, 5)
 
     local nameLabel = Instance.new("TextLabel")
     nameLabel.Name = "Filename"
     nameLabel.Position = UDim2.fromOffset(7, 2)
     nameLabel.Size = UDim2.new(1, -14, 0, 18)
     nameLabel.BackgroundTransparency = 1
-    nameLabel.Text = "▶  " .. filename
+    nameLabel.Text = "▶  " .. getFilename(path)
     nameLabel.TextColor3 = Color3.fromRGB(240, 240, 250)
     nameLabel.TextSize = 11
     nameLabel.Font = Enum.Font.GothamBold
@@ -379,18 +278,48 @@ local function addFile(path, index)
     end)
 end
 
--- Refresh the audio library.
+local function scanDirectory(path, results, visited, depth)
+    if depth > 30 then
+        return
+    end
+
+    local ok, entries = pcall(ListFiles, path)
+
+    if not ok or type(entries) ~= "table" then
+        return
+    end
+
+    for _, entry in ipairs(entries) do
+        if type(entry) == "string" then
+            local normalized = entry:gsub("\\", "/")
+
+            if not visited[normalized] then
+                visited[normalized] = true
+
+                local folderOK, folder = pcall(IsFolder, entry)
+
+                if folderOK and folder then
+                    scanDirectory(entry, results, visited, depth + 1)
+                elseif isAudioFile(entry) then
+                    table.insert(results, entry)
+                end
+            end
+        end
+    end
+end
+
 local function refreshFiles()
     scanGeneration += 1
     local thisScan = scanGeneration
 
     clearList()
-    status.Text = "Scanning executor workspace..."
+    status.Text = "Scanning sandbox..."
 
     task.spawn(function()
         local results = {}
 
-        scanDirectory(ROOT, results, {}, 0)
+        -- The executor sandbox root is the empty string.
+        scanDirectory("", results, {}, 0)
 
         if thisScan ~= scanGeneration or not gui.Parent then
             return
@@ -408,21 +337,18 @@ local function refreshFiles()
             addFile(path, index)
         end
 
-        status.Text = string.format(
-            "%d audio file(s) found",
-            #results
-        )
+        status.Text = string.format("%d audio file(s) found", #results)
     end)
 end
 
 refresh.Activated:Connect(refreshFiles)
+
 stop.Activated:Connect(function()
-    stopAudio(false)
+    stopAudio()
 end)
 
 gui.Destroying:Connect(function()
-    stopAudio(true)
+    stopAudio()
 end)
 
--- Initial scan.
 refreshFiles()
