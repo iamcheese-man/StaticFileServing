@@ -28,7 +28,7 @@ local ROOM_COUNT = 15
 -- the relay is broken so ill use the direct endp
 local ENDPOINT = "wss://chatroom.openfun.app/ws"
 local MAX_MESSAGES = 200
-local PASSWORD = "2?.7?281@,20!."
+local PASSWORD = "2?.7?281@72?,972!;9/?,9/@£/:/,72?/,);?bs xibave£.?2&! cb??,320'!:) bc!:32,20!."
 
 
 -- Clean up a previous execution
