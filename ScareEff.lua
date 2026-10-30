@@ -128,7 +128,7 @@ local horrorSound = Instance.new("Sound")
 horrorSound.Name = "ScareSound"
 horrorSound.SoundId = soundAsset
 horrorSound.Volume = 0
-horrorSound.Looped = false
+horrorSound.Looped = true
 horrorSound.Parent = workspace
 
 -- Initial camera configuration
