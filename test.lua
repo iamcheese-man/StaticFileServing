@@ -13,32 +13,101 @@ local folderName = "ScareEff"
 local soundFileName = "Moonlit-River-Park.mp3"
 local soundURL = "https://iamcheese-man.github.io/StaticFileServing/Moonlit-River-Park.mp3"
 
--- Create the ScareEff folder in Delta workspace
+-- Create ScareEff folder
+
 if not isfolder(folderName) then
+
     makefolder(folderName)
+
 end
 
--- Download the sound into ScareEff
 local soundPath = folderName .. "/" .. soundFileName
 
-local success, response = pcall(function()
-    return request({
-        Url = soundURL,
-        Method = "GET"
-    })
+local soundAsset
+
+if isfile(soundPath) then
+
+    print("[ScareEff] Audio already exists. Skipping download.")
+
+else
+
+    print("[ScareEff] Downloading audio...")
+
+    local requestSuccess, response = pcall(function()
+
+        return request({
+
+            Url = soundURL,
+
+            Method = "GET"
+
+        })
+
+    end)
+
+    if not requestSuccess then
+
+        warn("[ScareEff] Request failed:", response)
+
+        return
+
+    end
+
+    if response.StatusCode ~= 200 then
+
+        warn("[ScareEff] HTTP error:", response.StatusCode)
+
+        return
+
+    end
+
+    if not response.Body or #response.Body == 0 then
+
+        warn("[ScareEff] Downloaded file is empty.")
+
+        return
+
+    end
+
+    local writeSuccess, writeError = pcall(function()
+
+        writefile(soundPath, response.Body)
+
+    end)
+
+    if not writeSuccess then
+
+        warn("[ScareEff] Failed to save audio:", writeError)
+
+        return
+
+    end
+
+    print("[ScareEff] Download successful!")
+
+end
+
+-- Load audio asset
+
+local assetSuccess, assetResult = pcall(function()
+
+    return getcustomasset(soundPath)
+
 end)
 
-if not success then
-    error("Sound download failed: " .. tostring(response))
+if not assetSuccess then
+
+    warn("[ScareEff] Failed to load audio asset:", assetResult)
+
+    return
+
 end
 
-if response.StatusCode ~= 200 then
-    error("Sound download failed with HTTP status: " .. tostring(response.StatusCode))
-end
+soundAsset = assetResult
 
-writefile(soundPath, response.Body)
+print("[ScareEff] Initializing horror effects...")
 
--- Original lighting targets
+-- Lighting targets
 local targetClockTime = 20
 local targetBrightness = 0.2
 local targetAmbient = Color3.fromRGB(30, 30, 30)
@@ -47,33 +116,35 @@ local targetFogColor = Color3.fromRGB(40, 40, 50)
 local targetFogStart = 10
 local targetFogEnd = 70
 
--- Stop all existing sounds in workspace
+-- Stop existing workspace sounds
 for _, sound in ipairs(workspace:GetDescendants()) do
     if sound:IsA("Sound") then
         sound:Stop()
     end
 end
 
--- Create and play the horror sound
+-- Create horror sound
 local horrorSound = Instance.new("Sound")
 horrorSound.Name = "ScareSound"
-horrorSound.SoundId = getcustomasset(soundPath)
+horrorSound.SoundId = soundAsset
 horrorSound.Volume = 0
 horrorSound.Looped = false
 horrorSound.Parent = workspace
-horrorSound:Play()
+
+-- Initial camera configuration
+camera.CameraSubject = humanoid
+camera.CameraType = Enum.CameraType.Custom
+player.CameraMode = Enum.CameraMode.Classic
 
 -- Fade duration
 local fadeTime = 3
 local elapsed = 0
 
--- Initial camera settings
-camera.CameraSubject = humanoid
-camera.CameraType = Enum.CameraType.Custom
-player.CameraMode = Enum.CameraMode.Classic
-
--- Tween lighting changes
-local tweenInfo = TweenInfo.new(fadeTime, Enum.EasingStyle.Linear)
+-- Lighting tween
+local tweenInfo = TweenInfo.new(
+    fadeTime,
+    Enum.EasingStyle.Linear
+)
 
 local lightingGoals = {
     ClockTime = targetClockTime,
@@ -85,10 +156,17 @@ local lightingGoals = {
     FogEnd = targetFogEnd,
 }
 
-local tween = TweenService:Create(Lighting, tweenInfo, lightingGoals)
+local tween = TweenService:Create(
+    Lighting,
+    tweenInfo,
+    lightingGoals
+)
+
+-- Start effects
+horrorSound:Play()
 tween:Play()
 
--- Heartbeat loop: fade sound and transition camera
+-- Fade sound and transition camera
 local connection
 
 connection = RunService.Heartbeat:Connect(function(dt)
@@ -96,10 +174,8 @@ connection = RunService.Heartbeat:Connect(function(dt)
 
     local alpha = math.clamp(elapsed / fadeTime, 0, 1)
 
-    -- Fade in sound volume
     horrorSound.Volume = alpha
 
-    -- Transition from third person to first person
     if alpha < 0.5 then
         player.CameraMode = Enum.CameraMode.Classic
     else
@@ -108,5 +184,6 @@ connection = RunService.Heartbeat:Connect(function(dt)
 
     if alpha >= 1 then
         connection:Disconnect()
+        print("[ScareEff] Horror effects initialized.")
     end
 end)
