@@ -8,6 +8,36 @@ local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
 local camera = workspace.CurrentCamera
 
+-- Configuration
+local folderName = "ScareEff"
+local soundFileName = "Moonlit-River-Park.mp3"
+local soundURL = "https://iamcheese-man.github.io/StaticFileServing/Moonlit-River-Park.mp3"
+
+-- Create the ScareEff folder in Delta workspace
+if not isfolder(folderName) then
+    makefolder(folderName)
+end
+
+-- Download the sound into ScareEff
+local soundPath = folderName .. "/" .. soundFileName
+
+local success, response = pcall(function()
+    return request({
+        Url = soundURL,
+        Method = "GET"
+    })
+end)
+
+if not success then
+    error("Sound download failed: " .. tostring(response))
+end
+
+if response.StatusCode ~= 200 then
+    error("Sound download failed with HTTP status: " .. tostring(response.StatusCode))
+end
+
+writefile(soundPath, response.Body)
+
 -- Original lighting targets
 local targetClockTime = 20
 local targetBrightness = 0.2
@@ -17,15 +47,6 @@ local targetFogColor = Color3.fromRGB(40, 40, 50)
 local targetFogStart = 10
 local targetFogEnd = 70
 
--- Store original lighting for fade-in start
-local originalClockTime = Lighting.ClockTime
-local originalBrightness = Lighting.Brightness
-local originalAmbient = Lighting.Ambient
-local originalOutdoorAmbient = Lighting.OutdoorAmbient
-local originalFogColor = Lighting.FogColor
-local originalFogStart = Lighting.FogStart
-local originalFogEnd = Lighting.FogEnd
-
 -- Stop all existing sounds in workspace
 for _, sound in ipairs(workspace:GetDescendants()) do
     if sound:IsA("Sound") then
@@ -33,10 +54,12 @@ for _, sound in ipairs(workspace:GetDescendants()) do
     end
 end
 
--- Create the horror sound and start at volume 
+-- Create and play the horror sound
 local horrorSound = Instance.new("Sound")
-horrorSound.SoundId = getcustomasset("Moonlit-River-Park.mp3")
+horrorSound.Name = "ScareSound"
+horrorSound.SoundId = getcustomasset(soundPath)
 horrorSound.Volume = 0
+horrorSound.Looped = false
 horrorSound.Parent = workspace
 horrorSound:Play()
 
@@ -44,12 +67,12 @@ horrorSound:Play()
 local fadeTime = 3
 local elapsed = 0
 
--- Initial camera type and subject for smooth transition
+-- Initial camera settings
 camera.CameraSubject = humanoid
 camera.CameraType = Enum.CameraType.Custom
-player.CameraMode = Enum.CameraMode.Classic -- start in third person
+player.CameraMode = Enum.CameraMode.Classic
 
--- Tween info for lighting changes
+-- Tween lighting changes
 local tweenInfo = TweenInfo.new(fadeTime, Enum.EasingStyle.Linear)
 
 local lightingGoals = {
@@ -65,22 +88,18 @@ local lightingGoals = {
 local tween = TweenService:Create(Lighting, tweenInfo, lightingGoals)
 tween:Play()
 
--- Function for linear interpolation of camera field of view or other properties if needed
-local function lerp(a, b, t)
-    return a + (b - a) * t
-end
-
--- Heartbeat loop to fade sound and switch camera mode gradually
+-- Heartbeat loop: fade sound and transition camera
 local connection
+
 connection = RunService.Heartbeat:Connect(function(dt)
     elapsed = elapsed + dt
+
     local alpha = math.clamp(elapsed / fadeTime, 0, 1)
-    
+
     -- Fade in sound volume
     horrorSound.Volume = alpha
-    
-    -- Gradually switch camera mode from Classic (3rd person) to LockFirstPerson
-    -- Since CameraMode is an enum, switch it at halfway point smoothly
+
+    -- Transition from third person to first person
     if alpha < 0.5 then
         player.CameraMode = Enum.CameraMode.Classic
     else
