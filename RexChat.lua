@@ -25,7 +25,7 @@ local Username = Player.Name
 
 local ROOM_PREFIX = "REX-Chat-Room"
 local ROOM_COUNT = 15
--- the relay is broken so ill use the direct endp
+
 local ENDPOINT = "wss://openfunproxy.zerdgeservers.workers.dev/ws"
 local MAX_MESSAGES = 200
 
