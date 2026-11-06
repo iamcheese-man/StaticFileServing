@@ -7,11 +7,11 @@ local TextChatService = game:GetService("TextChatService")
 local SChannel = TextChatService.TextChannels:FindFirstChild("RBXGeneral")
 local Remote = ReplicatedStorage.DataEvents.DataRemoteEvent
 
-local INTERVAL = 0
+local INTERVAL = 0.1
 local ENABLED = true
 
 SChannel:SendAsync("LONG LIVE THE KING!")
 while ENABLED do
-    Remote:FireServer(string.rep("SHUSHUHSUHSUHSUSHSGSUSUSHHDUHSUSYSGSUUEHG0x99", 100009))
+    Remote:FireServer(string.rep("SHUSHUHSUHSUHSUSHSGSUSUSHHDUHSUSYSGSUUEHG0x99", 1000090))
     task.wait(INTERVAL)
 end
